@@ -149,11 +149,11 @@ Using this approach make code cleaner, more readable and more gas efficient.
 Consider it in mentioned Lines:
 573-617-751-765-763-792-980-991-997
 
-## <a id='L-05'></a>L-05. Enhancing transfer
+## <a id='L-05'></a>L-05. Enhancing transfer safety
 
 ## Summary
 
-The contract interacts with interface of ERC20 in several functions. To have safer interactions with ERC20 token it is recommended to use `TransferHelper` library from `Uniswap` instead of calling `IERC20` functions directly:
+For safer interactions with `ERC20` tokens, it's advised to utilize the `TransferHelper` library from Uniswap rather than directly invoking functions from `IERC20`, as the contract engages with the ERC20 interface (IERC20) across multiple functions.
 
 https://github.com/Uniswap/v3-periphery/blob/main/contracts/libraries/TransferHelper.sol
 
@@ -163,9 +163,114 @@ https://github.com/Uniswap/v3-periphery/blob/main/contracts/libraries/TransferHe
 + TransferHelper.SafeTransferFrom(address(payToken),msg.sender,parentAddress, _totalPayAmount.mul(percentReferralsLv1).div(100))
 ```
 
-## Recommended Mitigation
+## Recommended approach
 
-You can find interactions with token interface by searching `payToken` and replacing mentioned approach wherever you called the interface funtion.
+You can locate interactions with the token interface by searching for payToken and substituting the mentioned approach wherever you've invoked the interface function.
+
+## <a id='L-06'></a>L-06. Prevent defining a structure 3 times
+
+## Summary
+
+In the `claim` function, you'll notice the mapping `ledger[epochs[i]][msg.sender]` referencing the `TradeInfo` structure, which is accessed 3 times. This approach isn't optimal in terms of gas efficiency and code cleanliness. To improve this, consider defining its instance in `storage`, as modifying its value throughout the function prevents defining it in `memory`.
+
+## Recommended approach
+
+```diff
+function claim(uint256[] calldata epochs) external nonReentrant notContract {
+    uint256 reward; // Initializes reward
+
+    for (uint256 i = 0; i < epochs.length; i++) {
+        require(rounds[epochs[i]].startTimestamp != 0, "Round has not started");
+        require(block.timestamp > rounds[epochs[i]].closeTimestamp, "Round has not ended");
+
+        uint256 addedReward = 0;
++        Ledger storage userLedger = ledger[epochs[i]][msg.sender]; // Define once in storage
+
+        // Round valid, claim rewards
+        if (rounds[epochs[i]].lockPrice > 0) {
+            require(claimable(epochs[i], msg.sender), "Not eligible for claim");
+            Round memory round = rounds[epochs[i]];
+-            addedReward = ((ledger[epochs[i]][msg.sender].amount) * round.rewardAmount) / round.rewardBaseCalAmount;
++            addedReward = (userLedger.amount * round.rewardAmount) / round.rewardBaseCalAmount; // Use stored value
+        }
+        // Round invalid, refund bet amount
+        else {
+            require(refundable(epochs[i], msg.sender), "Not eligible for refund");
+-            addedReward = ledger[epochs[i]][msg.sender].amount;
+
++            addedReward = userLedger.amount; // Use stored value
+        }
+-       ledger[epochs[i]][msg.sender].claimed = true;
++        userLedger.claimed = true; // Update stored value
+        reward += addedReward;
+
+        emit Claim(msg.sender, epochs[i], addedReward);
+    }
+
+    if (reward > 0) {
+        payToken.transfer(address(msg.sender), reward);
+    }
+}
+
+```
+
+## <a id='L-07'></a>L-07. Defining unusable variable and unnecessary`if` statement in `genesisStartRound` function
+
+## Summary
+
+1_In the `genesisStartRound` function, you've defined `uint256 startTimestamp`, which receives its value from `_startTimestamp`, an input variable whose value remains constant. Therefore, you can directly utilize `_startTimestamp` instead of creating an additional variable.
+
+2_Since the `genesisStartRound` function is invoked only once, specifically when `currentEpoch` equals `0`, there's no necessity to verify whether its value differs from 0 before executing another action. Hence, we can straightforwardly omit this check.
+
+## Recommended approach
+
+```diff
+
+ function genesisStartRound(uint256 _startTimestamp,uint256 _startEpoch) external whenNotPaused onlyOperator {
+        require(!genesisStartOnce, "Can only run genesisStartRound once");
+-        if (currentEpoch ==0){
+-            currentEpoch = currentEpoch + _startEpoch ;
+-        }else{
+-            currentEpoch = currentEpoch;
+-        }
++       currentEpoch = currentEpoch + _startEpoch ;
+
+        Round storage round = rounds[currentEpoch];
+-       uint256 startTimestamp = _startTimestamp;
+-       round.startTimestamp = startTimestamp;
++       round.startTimestamp = _startTimestamp;
+-       round.lockTimestamp = startTimestamp + intervalSeconds;
++       round.lockTimestamp = _startTimestamp + intervalSeconds;
+-       round.closeTimestamp =startTimestamp +  (2*intervalSeconds);
++       round.closeTimestamp =_startTimestamp +  (2*intervalSeconds);
+        round.epoch = currentEpoch;
+        round.totalAmount = 0;
+        genesisStartOnce = true;
+    }
+
+```
+
+## <a id='L-08'></a>L-08. Natspec and modifiers of `pause` function does not match
+
+## Summary
+
+In natspec of `pause` function mentioned that this function is callable `by owner` and `operator`:
+
+```solidity
+
+  /**
+     * @notice called by the admin to pause, triggers stopped state
+     * @dev Callable by admin or operator
+     */
+    function pause() external whenNotPaused onlyOwner {
+        _pause();
+
+        emit Pause(currentEpoch);
+    }
+
+```
+
+However, the function modifiers restrict its invocation solely to the owner, disallowing the operator. If you intend to permit the operator to execute this function, consider adjusting the modifiers accordingly. Alternatively, if operator access isn't required, you can simply remove it from natspec.
 
 ## <a id='H-01'></a>L-01. Initialization Timeframe Vulnerability
 
