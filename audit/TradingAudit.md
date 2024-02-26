@@ -51,7 +51,7 @@
 
 ## Summary
 
-Since you want to set specific amount of a token which it has 18 decimals, to set real amount of token (10 token) instead of adding 18 zeros to the real number, you can simply add `ether` keyword.
+If you intend to specify a particular amount of a token with 18 decimal places, rather than appending 18 zeros to the actual number, you can conveniently employ the `ether` keyword.
 
 ## Vulnerability Details
 
@@ -61,19 +61,11 @@ While it may not constitute a security vulnerability, adhering to this practice 
 
 Readablility
 
-## Proof of Concept
-
-### Working Test Case
-
-## Recommended Mitigation
-
-## Tools Used
-
 ## <a id='L-02'></a>L-02. Potentioally unnecessary event
 
 ## Summary
 
-Based on the contract, it seems that the event "NewTreasuryFee" doesn't need to be stored or displayed anywhere. If it doesn't serve a specific purpose or functionality, consider removing it or retrieving its value directly from the contract rather than emitting events.
+Based on the contract, it seems that the event `NewTreasuryFee` doesn't need to be stored or displayed anywhere. If it doesn't serve a specific purpose or functionality, consider removing it or retrieving its value directly from the contract rather than emitting events.
 
 ## Impact
 
@@ -161,15 +153,17 @@ Consider it in mentioned Lines:
 
 For safer interactions with `ERC20` tokens, it's advised to utilize the `TransferHelper` library from Uniswap rather than directly invoking functions from `IERC20`, as the contract engages with the ERC20 interface (IERC20) across multiple functions.
 
+## Documentation source
+
 https://github.com/Uniswap/v3-periphery/blob/main/contracts/libraries/TransferHelper.sol
+
+## Recommended approach
 
 ```diff
 - payToken.transferFrom(msg.sender,parentAddress,_totalPayAmount.mul(percentReferralsLv1).div(100));
 
 + TransferHelper.SafeTransferFrom(address(payToken),msg.sender,parentAddress, _totalPayAmount.mul(percentReferralsLv1).div(100))
 ```
-
-## Recommended approach
 
 You can locate interactions with the token interface by searching for payToken and substituting the mentioned approach wherever you've invoked the interface function.
 
@@ -314,7 +308,7 @@ Since it appears that the function lacks a clear purpose, please either incorpor
 
 ## Summary
 
-In `setTreasuryFee` function which owner can set new `trasutyFee` we make sure if fee less than `MAX_TREASURY_FEE` but we do not check if it is bigger than zero. So if you have not considered any specific purpose for it, make sure it is bigger than 0.
+In the `setTreasuryFee` function, where the owner can establish a new treasuryFee, we ensure that the fee is less than `MAX_TREASURY_FEE`, but we neglect to verify if it exceeds zero. Therefore, unless there's a specific reason for it to be otherwise, it's advisable to confirm that the fee is greater than zero.
 
 ```diff
   function setTreasuryFee(uint256 _treasuryFee) external  onlyOwner {
@@ -333,11 +327,11 @@ In `setTreasuryFee` function which owner can set new `trasutyFee` we make sure i
 
 ## Summary
 
-In `setOperatorAndtreasuryAddress` function which owner can set new `operatorAddress` and `treasuryAddress`, it has require statement to make sure if `_operatorAddress` which is new operator address is not equal to zero address, but it does not check `_treasuryAddress` (new treasuryAddress) and it can set to zero address.
+In the `setOperatorAndtreasuryAddress` function, the owner has the ability to designate a new operatorAddress and treasuryAddress. While a require statement ensures that `_operatorAddress`, the new operator address, is not set to the zero address, but it does not validate `_treasuryAddress`, potentially allowing it to be set to the zero address.
 
 ## Vulnerability Details
 
-Since contract sends token to `treasuryAddress`,if `treasuryAddress` is equal to zero sended tokens to zero address will lost.
+Given that the contract sends tokens to `treasuryAddress`, sending tokens to the zero address will result in their loss if `treasuryAddress` is set to zero.
 
 ## Impact
 
@@ -360,12 +354,11 @@ Loss of money
 
 ## Summary
 
-`recoverToken` is a function which allows owner to transfer any amount of token to itself if the token is transfered to contract by mistake . But this function also allow owner to transfer all existed tokens which may belong to users and it decrease trustablility.
-To make it clear that the owner not going to abuse this function, add more modifiers to give more limitation.
+The function `recoverToken` permits the owner to reclaim tokens inadvertently transferred to the contract. However, it also grants the owner the ability to withdraw all tokens, potentially compromising trust. To enhance transparency and mitigate misuse, consider implementing additional modifiers to impose stricter limitations on its usage.
 
 ## Recommendations
 
-For example you can simply prove that admin not going to transfer payToken which may belongs to users:
+For instance, you can easily demonstrate that the admin will refrain from transferring payToken` that might rightfully belong to users.
 
 ```diff
 
