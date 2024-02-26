@@ -323,7 +323,7 @@ In the `setTreasuryFee` function, where the owner can establish a new treasuryFe
 
 # Medium Risk Findings
 
-## <a id='M-01'></a>M-01. `treasuryAddress` could be zero address.
+## <a id='M-01'></a>M-01. `treasuryAddress` Can set to zero address.
 
 ## Summary
 
