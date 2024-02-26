@@ -4,33 +4,39 @@
 
 - ### [Contest Summary](#contest-summary)
 - ### [Results Summary](#results-summary)
-- ## High Risk Findings
-
-  - [H-01. Anyone can set the password by calling `PasswordStore::setPassword`](#H-01)
-  - [H-02. Owner's password stored in the `s_password` state variable is not a secret and can be seen by everyone](#H-02)
 
 - ## Low Risk Findings
-  - [L-01. Initialization Timeframe Vulnerability](#L-01)
+  - [L-01. Use `ether` keyword instead of eighteen zeros.](#L-01)
+  - [L-02. Potentioally unnecessary event](#L-02)
+  - [L-03. Optimize gas cost by using constant variables](#L-03)
+  - [L-04. Increment and decrement](#L-04)
+  - [L-05. Enhancing transfer safety](#L-05)
+  - [L-06. Prevent defining a mapping 3 times](#L-06)
+  - [L-07. Remove unusable variable and unnecessary`if` statement in `genesisStartRound` function](#L-07)
+  - [L-08. Natspec and modifiers of `pause` function does not match](#L-08)
+  - [L-09. `unpause` Function does not have mentioned functionality](#L-09)
+- ## Medium Risk Findings
+- [M-01. `treasuryAddress` could be zero address.](#M-01)
+- [M-02. `recoverToken` detected as malicious function.](#M-02)
+- ## High Risk Findings
 
 # <a id='contest-summary'></a>Contest Summary
 
-### Sponsor: First Flight #1
+### Dates: Feb 20th, 2024 - Feb 26th, 2024
 
-### Dates: Oct 18th, 2023 - Oct 25th, 2023
-
-[See more contest details here](https://www.codehawks.com/contests/clnuo221v0001l50aomgo4nyn)
+[Audited by Alireza Haghshenas](https://github.com/alireza1691)
 
 # <a id='results-summary'></a>Results Summary
 
 ### Number of findings:
 
-- High: 2
-- Medium: 0
-- Low: 1
+- High: 0
+- Medium: 2
+- Low: 9
 
 # Low Risk Findings
 
-## <a id='L-01'></a>L-01. To make code more clear and efficient you can use `ether` keyword instead of eighteen zeros.
+## <a id='L-01'></a>L-01. Use `ether` keyword instead of eighteen zeros.
 
 ```diff
 
@@ -73,7 +79,7 @@ Based on the contract, it seems that the event "NewTreasuryFee" doesn't need to 
 
 Emmiting events consumes gas. Therefore, eliminating unnecessary events enhances gas efficiency.
 
-## <a id='L-03'></a>L-03. Constant variable
+## <a id='L-03'></a>L-03. Optimize gas cost by using constant variables
 
 ## Summary
 
@@ -167,7 +173,7 @@ https://github.com/Uniswap/v3-periphery/blob/main/contracts/libraries/TransferHe
 
 You can locate interactions with the token interface by searching for payToken and substituting the mentioned approach wherever you've invoked the interface function.
 
-## <a id='L-06'></a>L-06. Prevent defining a structure 3 times
+## <a id='L-06'></a>L-06. Prevent defining a mapping 3 times
 
 ## Summary
 
@@ -214,7 +220,7 @@ function claim(uint256[] calldata epochs) external nonReentrant notContract {
 
 ```
 
-## <a id='L-07'></a>L-07. Defining unusable variable and unnecessary`if` statement in `genesisStartRound` function
+## <a id='L-07'></a>L-07. Remove unusable variable and unnecessary`if` statement in `genesisStartRound` function
 
 ## Summary
 
@@ -272,43 +278,102 @@ In natspec of `pause` function mentioned that this function is callable `by owne
 
 However, the function modifiers restrict its invocation solely to the owner, disallowing the operator. If you intend to permit the operator to execute this function, consider adjusting the modifiers accordingly. Alternatively, if operator access isn't required, you can simply remove it from natspec.
 
-## <a id='H-01'></a>L-01. Initialization Timeframe Vulnerability
+It also appears that the function serves no particular purpose. Please keep in mind that removing such unused functions can optimize gas usage.
 
-_Submitted by [dianivanov](/profile/clo3cuadr0017mp08rvq00v4e)._
-
-### Relevant GitHub Links
-
-https://github.com/Cyfrin/2023-10-PasswordStore/blob/main/src/PasswordStore.sol
+## <a id='L-09'></a>L-09. `unpause` Function does not have mentioned functionality
 
 ## Summary
 
-The PasswordStore contract exhibits an initialization timeframe vulnerability. This means that there is a period between contract deployment and the explicit call to setPassword during which the password remains in its default state. It's essential to note that even after addressing this issue, the password's public visibility on the blockchain cannot be entirely mitigated, as blockchain data is inherently public as already stated in the "Storing password in blockchain" vulnerability.
+According to `unpause` function natspec:
+
+```solidity
+ /**
+     * @notice called by the admin to unpause, returns to normal state
+     * Reset genesis state. Once paused, the rounds would need to be kickstarted by genesis
+     */
+```
+
+It should kickstart genesis round. But it does not contain required functionalities, It just call `_unpause` function from `Pausable` contract which is imported.
+
+```solidity
+   function unpause() external whenPaused onlyOwner {
+        // genesisStartOnce = false;
+        // genesisLockOnce = false;
+        _unpause();
+
+        emit Unpause(currentEpoch);
+    }
+
+```
+
+## Recommended approach
+
+Since it appears that the function lacks a clear purpose, please either incorporate the mentioned functionality or eliminate it altogether.
+
+## <a id='L-09'></a>L-09. `treasuryFee` can set to zero
+
+## Summary
+
+In `setTreasuryFee` function which owner can set new `trasutyFee` we make sure if fee less than `MAX_TREASURY_FEE` but we do not check if it is bigger than zero. So if you have not considered any specific purpose for it, make sure it is bigger than 0.
+
+```diff
+  function setTreasuryFee(uint256 _treasuryFee) external  onlyOwner {
+-       require(_treasuryFee <= MAX_TREASURY_FEE, "Treasury fee too high");
++       require(0 < _treasuryFee <= MAX_TREASURY_FEE, "Treasury fee too high");
+        treasuryFee = _treasuryFee;
+
+        emit NewTreasuryFee(currentEpoch, treasuryFee);
+    }
+
+```
+
+# Medium Risk Findings
+
+## <a id='M-01'></a>M-01. `treasuryAddress` could be zero address.
+
+## Summary
+
+In `setOperatorAndtreasuryAddress` function which owner can set new `operatorAddress` and `treasuryAddress`, it has require statement to make sure if `_operatorAddress` which is new operator address is not equal to zero address, but it does not check `_treasuryAddress` (new treasuryAddress) and it can set to zero address.
 
 ## Vulnerability Details
 
-The contract does not set the password during its construction (in the constructor). As a result, when the contract is initially deployed, the password remains uninitialized, taking on the default value for a string, which is an empty string.
-
-During this initialization timeframe, the contract's password is effectively empty and can be considered a security gap.
+Since contract sends token to `treasuryAddress`,if `treasuryAddress` is equal to zero sended tokens to zero address will lost.
 
 ## Impact
 
-The impact of this vulnerability is that during the initialization timeframe, the contract's password is left empty, potentially exposing the contract to unauthorized access or unintended behavior.
-
-## Tools Used
-
-No tools used. It was discovered through manual inspection of the contract.
+Loss of money
 
 ## Recommendations
 
-To mitigate the initialization timeframe vulnerability, consider setting a password value during the contract's deployment (in the constructor). This initial value can be passed in the constructor parameters.
+```diff
+   function setOperatorAndtreasuryAddress(address _operatorAddress,address _treasuryAddress) external onlyOwner {
+-       require(_operatorAddress != address(0), "Cannot be zero address");
++       require(_operatorAddress != address(0) && _treasuryAddress != address(0), "Cannot be zero address");
+        operatorAddress = _operatorAddress;
+        treasuryAddress = _treasuryAddress;
 
-```solidity
-/*
-     * @notice This function allows only the owner to set a new password.
-     * @param newPassword The new password to set.
-     */
-    function setPassword(string memory newPassword) external {
-        s_password = newPassword;
-        emit SetNetPassword();
     }
+
+```
+
+## <a id='M-02'></a>M-01. `recoverToken` detected as malicious function.
+
+## Summary
+
+`recoverToken` is a function which allows owner to transfer any amount of token to itself if the token is transfered to contract by mistake . But this function also allow owner to transfer all existed tokens which may belong to users and it decrease trustablility.
+To make it clear that the owner not going to abuse this function, add more modifiers to give more limitation.
+
+## Recommendations
+
+For example you can simply prove that admin not going to transfer payToken which may belongs to users:
+
+```diff
+
+  function recoverToken(address _token, uint256 _amount) external onlyOwner {
++       require(_token != address(payToken),"relevant error message" )
+        IERC20(_token).transfer(address(msg.sender), _amount);
+
+        emit TokenRecovery(_token, _amount);
+    }
+
 ```
