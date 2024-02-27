@@ -15,8 +15,9 @@
   - [L-07. Remove unusable variable and unnecessary`if` statement in `genesisStartRound` function](#L-07)
   - [L-08. Natspec and modifiers of `pause` function does not match](#L-08)
   - [L-09. `unpause` Function does not have mentioned functionality](#L-09)
+  - [L-10. `unpause` Function does not have mentioned functionality](#L-10)
 - ## Medium Risk Findings
-- [M-01. `treasuryAddress` could be zero address.](#M-01)
+- [M-01. `treasuryAddress` can be zero address.](#M-01)
 - [M-02. `recoverToken` detected as malicious function.](#M-02)
 - ## High Risk Findings
 
@@ -304,7 +305,7 @@ It should kickstart genesis round. But it does not contain required functionalit
 
 Since it appears that the function lacks a clear purpose, please either incorporate the mentioned functionality or eliminate it altogether.
 
-## <a id='L-09'></a>L-09. `treasuryFee` can set to zero
+## <a id='L-10'></a>L-10. `treasuryFee` can set to zero
 
 ## Summary
 
@@ -319,6 +320,49 @@ In the `setTreasuryFee` function, where the owner can establish a new treasuryFe
         emit NewTreasuryFee(currentEpoch, treasuryFee);
     }
 
+```
+
+## <a id='L-11'></a>L-11. `treasuryPercentages[index]` can set to zero
+
+## Summary
+
+In both the `addTreasuryWallet` and `updateTreasuryWallet` functions, where the owner can create a new treasury wallet or modify an existing one, we validate that `_percentage` is less than 100. However, if the value is 0, the function proceeds without reverting and sets `treasuryPercentages[index]` to the provided value of 0.
+
+The sole function that utilizes `treasuryPercentages[index]` is `_paysTreasury`, where we determine `amountToTransfer` and execute the transfer for the calculated amount:
+
+```solidity
+  function _paysTreasury(uint256 _totalTransfers) private {
+        uint256 remainingAmount = _totalTransfers;
+        if (treasuryWallets.length > 0) {
+            for (uint256 i = 0; i < treasuryWallets.length; i++) {
+                uint256 amountToTransfer = (_totalTransfers) // **** Here ***
+                    .mul(treasuryPercentages[i])
+                    .div(100);
+
+                if (amountToTransfer > 0) {
+                    remainingAmount -= amountToTransfer;
+                    payToken.transfer(treasuryWallets[i], amountToTransfer);
+                }
+            }
+
+            if (remainingAmount > 0) {
+                payToken.transfer(treasuryAddress, remainingAmount);
+            }
+        } else {
+            payToken.transfer(treasuryAddress, remainingAmount);
+        }
+    }
+```
+
+When we multiply `_totalTransfers` by `treasuryPercentages[index]`, if `treasuryPercentages[index]` equals 0, the resulting `amountToTransfer` will also be 0, indicating no transfer amount. Therefore, having any treasury wallet with a 0 percentage is deemed pointless, and it's wise to avoid incorporating unnecessary functionality or variables.
+
+## Recommended approach
+
+Replace require statement with this one in both `addTreasuryWallet` and `updateTreasuryWallet` functions:
+
+```diff
+-  require(_percentage <= 100, "Percentage must be between 0 and 100");
++  require(0 < _percentage <= 100, "Percentage must be between 0 and 100");
 ```
 
 # Medium Risk Findings
@@ -367,6 +411,35 @@ For instance, you can easily demonstrate that the admin will refrain from transf
         IERC20(_token).transfer(address(msg.sender), _amount);
 
         emit TokenRecovery(_token, _amount);
+    }
+
+```
+
+## <a id='M-03'></a>M-03. Manipulating the timestamps to incorrect values can lead to crashing the epoch/round.
+
+## Summary
+
+In the `adjustTimestamp` function, which allows the owner to update the `startTimestamp`, `lockTimestamp`, and `closeTimestamp` of an existing round, if the entered values (timestamps) do not align with the logic and functionality of the contract, the function does not revert. For instance, it's possible to set the `startTimestamp` to a value greater than the `closeTimestamp`.
+
+## Impact
+
+Mismatched timestamps in a round could compromise the contract's functionality and potentially lead to loss of money, specially user losses.
+
+## Recommendations
+
+You can simply add a require statement:
+
+```diff
+   function adjustTimestamp(
+        uint256 _epoch,
+        uint256 startTimestamp,
+        uint256 lockTimestamp,
+        uint256 closeTimestamp
+    ) external onlyOwner {
++   require( startTimestamp < lockTimestamp < closeTimestamp, "Timestamps do not match!")
+        rounds[_epoch].startTimestamp = startTimestamp;
+        rounds[_epoch].lockTimestamp = lockTimestamp;
+        rounds[_epoch].closeTimestamp = closeTimestamp;
     }
 
 ```
