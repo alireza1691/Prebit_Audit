@@ -15,10 +15,14 @@
   - [L-07. Remove unusable variable and unnecessary`if` statement in `genesisStartRound` function](#L-07)
   - [L-08. Natspec and modifiers of `pause` function does not match](#L-08)
   - [L-09. `unpause` Function does not have mentioned functionality](#L-09)
-  - [L-10. `unpause` Function does not have mentioned functionality](#L-10)
+  - [L-10. `treasuryFee` can set to zero](#L-10)
+  - [L-11. `treasuryPercentages[index]` can set to zero](#L-11)
 - ## Medium Risk Findings
 - [M-01. `treasuryAddress` can be zero address.](#M-01)
 - [M-02. `recoverToken` detected as malicious function.](#M-02)
+- [M-03. Manipulating the timestamps to incorrect values can lead to crashing the epoch/round.](#M-02)
+- [M-04. Using floating pragma version.](#M-02)
+
 - ## High Risk Findings
 
 # <a id='contest-summary'></a>Contest Summary
@@ -32,8 +36,8 @@
 ### Number of findings:
 
 - High: 0
-- Medium: 2
-- Low: 9
+- Medium: 4
+- Low: 11
 
 # Low Risk Findings
 
@@ -52,15 +56,11 @@
 
 ## Summary
 
-If you intend to specify a particular amount of a token with 18 decimal places, rather than appending 18 zeros to the actual number, you can conveniently employ the `ether` keyword.
+If you intend to specify a particular amount of a token with 18 decimal places, rather than appending 18 zeros to the actual number, you can conveniently employ the `ether` keyword. This method is simpler and cleaner.
 
 ## Vulnerability Details
 
 While it may not constitute a security vulnerability, adhering to this practice enhances the professionalism and cleanliness of your contract code.
-
-## Impact
-
-Readablility
 
 ## <a id='L-02'></a>L-02. Potentioally unnecessary event
 
@@ -68,15 +68,13 @@ Readablility
 
 Based on the contract, it seems that the event `NewTreasuryFee` doesn't need to be stored or displayed anywhere. If it doesn't serve a specific purpose or functionality, consider removing it or retrieving its value directly from the contract rather than emitting events.
 
-## Impact
-
 Emmiting events consumes gas. Therefore, eliminating unnecessary events enhances gas efficiency.
 
 ## <a id='L-03'></a>L-03. Optimize gas cost by using constant variables
 
 ## Summary
 
-According to the contract code, payToken is an instance of a token, specifically an ERC20 token interface. Its value (address) is set in the constructor and remains constant thereafter. However, in one of the error messages within the TradeDown function, it refers to payToken as USDT. To ensure clarity, you can define payToken as an constant variable on the destination network by specifying its address.
+According to the contract code, payToken is an instance of a token, specifically an ERC20 token interface. Its value (address) is set in the constructor and remains constant thereafter. However, in one of the error messages within the TradeDown function, it refers to payToken as USDT. To ensure clarity and gas optimization, you can define payToken as an constant variable on the destination network by specifying its address.
 
 ```diff
 
@@ -114,10 +112,6 @@ Here are some other variables that we can turn to constant varable:
 ```
 
 \*\*\* Note that if you do not interact with them externally,setting their visibility to `private` can also optimize gas usage.
-
-## Impact
-
-Gas efficiency
 
 ## <a id='L-04'></a>L-04. Increment and decrement
 
@@ -443,3 +437,27 @@ You can simply add a require statement:
     }
 
 ```
+
+## <a id='M-04'></a>M-04. Using floating pragma version `^0.8.19`.
+
+## Summary
+
+In `Trading.sol`, we can see contract uses floating pragma version:
+
+```solidity
+pragma solidity ^0.8.19;
+```
+
+Using a floating pragma version in Solidity smart contracts, such as `^0.8.19`, is generally discouraged for several reasons:
+
+### `Compatibility Risks`: Floating pragmas allow the Solidity compiler to use any version greater than or equal to the specified version. While this enables access to new features and optimizations, it also introduces the risk of compatibility issues. Code that compiles and behaves correctly with one compiler version might produce unexpected results with another version.
+
+### `Security Concerns`: New compiler versions may introduce changes to the language semantics or optimizations that could inadvertently impact the security of your smart contracts. Relying on a floating pragma increases the likelihood of unintended vulnerabilities being introduced into your codebase.
+
+### `Code Maintenance`: Smart contracts are often intended to have long lifespans, and relying on a floating pragma makes it harder to ensure consistent behavior and maintainability over time. By specifying a fixed pragma version, you establish a known environment in which your contract operates, making it easier to predict and manage changes.
+
+### `Auditing and Verification`: Specifying a fixed pragma version allows for easier auditing and verification of your smart contract code. Auditors and reviewers can focus on a specific compiler version, reducing the complexity of their analysis and ensuring that the code behaves as intended.
+
+## Recommendations
+
+Simply remove `^` and choose your desire version.
